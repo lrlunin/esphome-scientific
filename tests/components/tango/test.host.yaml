@@ -1,0 +1,4 @@
+network:
+
+packages:
+  tango: !include common.yaml

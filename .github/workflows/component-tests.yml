@@ -1,0 +1,102 @@
+name: Component tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      esphome_ref:
+        description: ESPHome branch/tag/commit to test against
+        default: dev
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.12"
+  # tests/components/*/test.<target>.yaml rely on the upstream
+  # tests/test_build_components/build_components_base.<target>.yaml files,
+  # so the tests are run inside an ESPHome checkout.
+  ESPHOME_REF: ${{ inputs.esphome_ref || 'dev' }}
+
+jobs:
+  compile:
+    name: ${{ matrix.component }} / ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { component: epics_ca, target: esp32-idf }
+          - { component: epics_ca, target: esp32-ard }
+          - { component: epics_ca, target: esp32-c3-idf }
+          - { component: epics_ca, target: esp32-c3-ard }
+          - { component: tango, target: esp32-idf }
+          - { component: tango, target: esp32-ard }
+          - { component: tango, target: esp32-c3-idf }
+          - { component: tango, target: esp32-c3-ard }
+          - { component: tango, target: esp8266-ard }
+          - { component: tango, target: rp2040-ard }
+          - { component: tango, target: host }
+    steps:
+      - name: Check out this repository
+        uses: actions/checkout@v4
+        with:
+          path: scientific
+
+      - name: Check out ESPHome
+        uses: actions/checkout@v4
+        with:
+          repository: esphome/esphome
+          ref: ${{ env.ESPHOME_REF }}
+          path: esphome
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: esphome/requirements*.txt
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: platformio-${{ matrix.target }}-${{ hashFiles('esphome/esphome/core/config.py', 'esphome/esphome/components/esp32/__init__.py', 'esphome/platformio.ini') }}
+          restore-keys: platformio-${{ matrix.target }}-
+
+      - name: Install ESPHome
+        working-directory: esphome
+        run: |
+          pip install -r requirements.txt -r requirements_test.txt
+          pip install -e .
+
+      - name: Copy components and tests into ESPHome
+        run: |
+          cp -r scientific/components/${{ matrix.component }} esphome/esphome/components/
+          cp -r scientific/tests/components/${{ matrix.component }} esphome/tests/components/
+
+      - name: Validate config
+        working-directory: esphome
+        run: >
+          python script/test_build_components.py
+          -e config
+          -c ${{ matrix.component }}
+          -t ${{ matrix.target }}
+          --isolate ${{ matrix.component }}
+          --fail-on-no-tests
+
+      - name: Compile
+        working-directory: esphome
+        run: >
+          python script/test_build_components.py
+          -e compile
+          -c ${{ matrix.component }}
+          -t ${{ matrix.target }}
+          --isolate ${{ matrix.component }}
+          --fail-on-no-tests

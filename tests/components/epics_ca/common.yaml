@@ -1,0 +1,126 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+sensor:
+  - platform: template
+    id: epics_ca_temperature
+    lambda: return 21.5;
+    update_interval: 10s
+
+binary_sensor:
+  - platform: template
+    id: epics_ca_online
+    lambda: return true;
+
+text_sensor:
+  - platform: template
+    id: epics_ca_version
+    lambda: return {"1.0.0"};
+
+number:
+  - platform: template
+    id: epics_ca_setpoint
+    min_value: 0
+    max_value: 100
+    step: 0.5
+    optimistic: true
+
+switch:
+  - platform: template
+    id: epics_ca_relay
+    optimistic: true
+
+select:
+  - platform: template
+    id: epics_ca_mode
+    options: ["Auto", "Manual", "Off"]
+    initial_option: "Auto"
+    optimistic: true
+
+text:
+  - platform: template
+    id: epics_ca_message
+    mode: text
+    optimistic: true
+
+button:
+  - platform: template
+    id: epics_ca_button
+
+epics_ca:
+  port: 5064
+  beacon_port: 5065
+  beacon_period: 30s
+  beacon_addresses: ["255.255.255.255", "192.168.1.255"]
+  max_clients: 2
+  max_channels_per_client: 64
+  max_subscriptions_per_client: 64
+  send_buffer_size: 4096
+  max_payload_size: 8192
+  prefix: "TEST:"
+  field_access: true
+  tcp_keepalive: true
+  pvs:
+    - name: TEMPERATURE
+      sensor: epics_ca_temperature
+      units: degC
+      precision: 1
+      description: Template temperature
+      display_low: -20
+      display_high: 60
+      high: 40
+      hihi: 50
+      high_severity: MINOR
+      hihi_severity: MAJOR
+      hysteresis: 0.5
+      monitor_deadband: 0.1
+      archive_deadband: 1
+    - name: ONLINE
+      binary_sensor: epics_ca_online
+      enum_strings: ["Offline", "Online"]
+      enum_severities: [MAJOR, NO_ALARM]
+    - name: VERSION
+      text_sensor: epics_ca_version
+    - name: SETPOINT
+      number: epics_ca_setpoint
+      on_write:
+        - logger.log:
+            format: "SETPOINT written: %.2f (%s)"
+            args: ["x", "s.c_str()"]
+    - name: RELAY
+      switch: epics_ca_relay
+    - name: MODE
+      select: epics_ca_mode
+    - name: MESSAGE
+      text: epics_ca_message
+    - name: BUTTON
+      button: epics_ca_button
+    - name: COUNTER
+      id: epics_ca_counter
+      type: long
+      initial_value: 0
+      drive_low: 0
+      drive_high: 1000
+      low: 10
+      lolo: 5
+      low_severity: MINOR
+      lolo_severity: MAJOR
+    - name: STATE
+      type: enum
+      enum_strings: ["IDLE", "BUSY", "FAULT"]
+      enum_severities: [NO_ALARM, MINOR, MAJOR]
+      initial_value: IDLE
+    - name: NOTE
+      type: string
+      initial_value: "note"
+      record_type: stringout
+    - name: READBACK
+      type: double
+      writable: false
+
+interval:
+  - interval: 60s
+    then:
+      - lambda: |-
+          id(epics_ca_counter).set_value(id(epics_ca_counter).get_value() + 1);

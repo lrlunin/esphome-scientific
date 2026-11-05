@@ -1,0 +1,69 @@
+sensor:
+  - platform: template
+    id: tango_temperature
+    lambda: return 21.5;
+    update_interval: 10s
+    unit_of_measurement: "°C"
+    accuracy_decimals: 2
+
+binary_sensor:
+  - platform: template
+    id: tango_door
+    lambda: return true;
+
+switch:
+  - platform: template
+    id: tango_relay
+    optimistic: true
+
+number:
+  - platform: template
+    id: tango_setpoint
+    min_value: 5
+    max_value: 30
+    step: 0.5
+    optimistic: true
+
+text_sensor:
+  - platform: template
+    id: tango_firmware
+    lambda: return {"1.0.0"};
+
+button:
+  - platform: template
+    id: tango_restart
+
+tango:
+  id: tango_server
+  device: test/tango/1
+  port: 10000
+  device_class: ESPHome
+  server_instance: test
+  description: Tango test device
+  max_clients: 2
+  max_message_size: 8192
+  idle_timeout: 60s
+  sensors:
+    - id: tango_temperature
+      name: Temperature
+      label: Temperature
+      description: Template temperature
+      unit: degC
+      format: "%.2f"
+  binary_sensors:
+    - id: tango_door
+      name: DoorOpen
+  switches:
+    - id: tango_relay
+      name: Relay
+      label: Main relay
+  numbers:
+    - id: tango_setpoint
+      name: SetPoint
+  text_sensors:
+    - id: tango_firmware
+      name: Firmware
+  buttons:
+    - id: tango_restart
+      name: Restart
+      description: Restart the device
